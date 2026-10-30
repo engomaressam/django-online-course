@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views import generic
 from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth.decorators import login_required
 import logging
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -105,12 +106,10 @@ def enroll(request, course_id):
 # Task 5: Submission and Result Views
 
 # A view to handle exam submission
+@login_required
 def submit(request, course_id):
     if request.method == 'POST':
-        enrollment = Enrollment.objects.get(
-            user=request.user,
-            course_id=course_id
-        )
+        enrollment = get_object_or_404(Enrollment, user=request.user, course_id=course_id)
         submission = Submission(enrollment=enrollment)
         submission.save()
 
@@ -123,12 +122,15 @@ def submit(request, course_id):
         submission.choices.set(choices)
 
         return HttpResponseRedirect(reverse(viewname='onlinecourse:exam_result', args=(course_id, submission.id,)))
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:course_details', args=(course_id,)))
 
 
 # A view to show the exam result
+@login_required
 def show_exam_result(request, course_id, submission_id):
-    submission = Submission.objects.get(id=submission_id)
-    course = Course.objects.get(id=course_id)
+    # A learner can only see their own submissions
+    submission = get_object_or_404(Submission, id=submission_id, enrollment__user=request.user, enrollment__course_id=course_id)
+    course = get_object_or_404(Course, id=course_id)
     questions = course.question_set.all()
     
     total_score = 0
